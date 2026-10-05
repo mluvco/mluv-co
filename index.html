@@ -50,9 +50,17 @@ f<!DOCTYPE html>
 <div class="cart" id="cart"><button class="close" onclick="toggleCart()">×</button><div class="eyebrow">YOUR BAG</div><h2>Shopping Cart <button class="cart-clear" onclick="clearCart()">Clear</button></h2><div id="cartItems"></div><div class="total" id="total">Total: RM 0.00</div><button class="primary wa" onclick="openCheckout()">CHECKOUT</button><div class="checkout-note">Your cart will be sent to MLUV CLOTHING on WhatsApp for price confirmation, availability and payment instructions.</div></div>
 <script>
 let current=null,selectedColor='',selectedSize='',qty=1;
-let cart=JSON.parse(localStorage.getItem('mluv_cart')||'[]');
+let cart=[];
+try{
+  const savedCart=localStorage.getItem('mluv_cart');
+  const parsedCart=savedCart?JSON.parse(savedCart):[];
+  cart=Array.isArray(parsedCart)?parsedCart:[];
+}catch(e){
+  cart=[];
+  try{localStorage.removeItem('mluv_cart')}catch(_e){}
+}
 const $=id=>document.getElementById(id);
-function saveCart(){localStorage.setItem('mluv_cart',JSON.stringify(cart));}
+function saveCart(){try{localStorage.setItem('mluv_cart',JSON.stringify(cart));}catch(e){console.warn('Cart storage unavailable:',e)}}
 function parseImageData(v){
   let raw=v||'', variants={}, fallback=[];
   try{
@@ -196,4 +204,23 @@ async function loadFromSupabase(){try{const data=await api(API+'?select=*&order=
 window.mluvOpenEditor=function(){build();$('mluvEditor').classList.add('show');msg('');};window.mluvCloseEditor=function(){apply();$('mluvEditor').classList.remove('show')};window.mluvExport=function(){apply();const old=$('mluvEditor');if(old)old.classList.remove('show');const btn=$('mluvEditorBtn');if(btn)btn.style.display='none';const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML,blob=new Blob([html],{type:'text/html;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='index.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);alert('备份版 index.html 已下载。')};
 if(location.hash==='#admin')$('mluvEditorBtn').style.display='block';window.addEventListener('hashchange',()=>{$('mluvEditorBtn').style.display=location.hash==='#admin'?'block':'none'});window.addEventListener('load',()=>setTimeout(loadFromSupabase,500));
 })();
-</script></body></html>
+</script><script>
+// MLUV CLOTHING mobile click safety bridge.
+// Keeps product cards clickable even if an old/corrupt cart value exists in Safari.
+(function(){
+  function ready(){
+    document.querySelectorAll('.product').forEach(function(card){
+      card.style.cursor='pointer';
+      card.addEventListener('click',function(e){
+        if(e.target && e.target.closest && e.target.closest('button,a,input,textarea,select')) return;
+        if(typeof window.openProduct==='function'){
+          e.preventDefault();
+          window.openProduct(card);
+        }
+      },true);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',ready); else ready();
+})();
+</script>
+</body></html>
