@@ -81,6 +81,28 @@ function renderGallery(){const imgs=imagesForColor();const first=imgs[0]||'';$('
 function selectPhoto(i){const imgs=imagesForColor(),x=imgs[i];if(!x)return;$('modalImg').style.backgroundImage='url("'+x.replace(/"/g,'\"')+'")';document.querySelectorAll('.modal-thumb').forEach((el,n)=>el.classList.toggle('selected',n===i))}
 function renderOptions(){$('colors').innerHTML=current.colors.map(x=>'<button type="button" class="opt '+(x===selectedColor?'selected':'')+'" onclick="selectColor('+JSON.stringify(x)+')">'+esc(x)+'</button>').join('');$('sizes').innerHTML=current.sizes.map(x=>'<button type="button" class="opt '+(x===selectedSize?'selected':'')+'" onclick="selectSize('+JSON.stringify(x)+')">'+esc(x)+'</button>').join('');const b=document.querySelector('#modal .primary');if(b){b.disabled=!(selectedColor&&selectedSize);b.textContent=(selectedColor&&selectedSize)?'ADD TO CART':'SELECT COLOUR & SIZE'}renderGallery()}
 function selectColor(x){selectedColor=x;renderOptions()}function selectSize(x){selectedSize=x;renderOptions()}function changeQty(n){qty=Math.max(1,qty+n);$('qty').textContent=qty}function closeProduct(){$('modal').classList.remove('show')}
+
+// Public event bridge: keep inline buttons and dynamically loaded products working on GitHub Pages/mobile Safari.
+window.openProduct = openProduct;
+window.closeProduct = closeProduct;
+window.selectPhoto = selectPhoto;
+window.selectColor = selectColor;
+window.selectSize = selectSize;
+window.changeQty = changeQty;
+window.addToCart = addToCart;
+window.toggleCart = toggleCart;
+window.cartQty = cartQty;
+window.removeItem = removeItem;
+window.clearCart = clearCart;
+
+// Fallback click delegation for product cards in case Safari/Pages does not resolve inline handlers.
+document.addEventListener('click', function(e){
+  const card = e.target.closest && e.target.closest('.product');
+  if(card && !e.target.closest('button,a,input,textarea,select')) {
+    e.preventDefault();
+    openProduct(card);
+  }
+});
 function addToCart(){if(!selectedColor||!selectedSize){alert('Please select a colour and size first.');return}let found=cart.find(x=>x.name===current.name&&x.color===selectedColor&&x.size===selectedSize);if(found)found.qty+=qty;else cart.push({name:current.name,color:selectedColor,size:selectedSize,qty:qty,price:current.price,img:imagesForColor()[0]||current.fallback?.[0]||''});saveCart();closeProduct();renderCart();$('cart').classList.add('show')}
 function cartQty(i,n){cart[i].qty=Math.max(1,cart[i].qty+n);saveCart();renderCart()}function removeItem(i){cart.splice(i,1);saveCart();renderCart()}function clearCart(){if(!cart.length)return;if(confirm('Clear all items from your cart?')){cart=[];saveCart();renderCart()}}
 function renderCart(){let count=cart.reduce((a,x)=>a+x.qty,0);$('cartCount').textContent=count;if(!cart.length){$('cartItems').innerHTML='<div class="empty">Your cart is empty.<br><br><a href="#new" onclick="toggleCart()">Continue Shopping</a></div>';$('total').textContent='Total: RM 0.00';return}$('cartItems').innerHTML=cart.map((x,i)=>'<div class="cart-item"><img src="'+x.img+'"><div class="cart-info"><b>'+x.name+'</b><small>Colour: '+x.color+' · Size: '+x.size+'</small><div class="cart-row"><div class="mini-qty"><button onclick="cartQty('+i+',-1)">−</button><span>'+x.qty+'</span><button onclick="cartQty('+i+',1)">+</button></div><strong>'+(x.price?'RM '+(x.price*x.qty).toFixed(2):'Price to confirm')+'</strong></div><button class="cart-remove" onclick="removeItem('+i+')">Remove</button></div></div>').join('');let priced=cart.every(x=>x.price>0);let sum=cart.reduce((a,x)=>a+x.price*x.qty,0);$('total').textContent=priced?'Total: RM '+sum.toFixed(2):'Total: Price to confirm';}
