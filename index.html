@@ -54,7 +54,25 @@ let cart=JSON.parse(localStorage.getItem('mluv_cart')||'[]');
 const $=id=>document.getElementById(id);
 function saveCart(){localStorage.setItem('mluv_cart',JSON.stringify(cart));}
 function openProduct(el){current={name:el.dataset.name,price:+el.dataset.price,colors:el.dataset.colors.split(',').map(x=>x.trim()),sizes:el.dataset.sizes.split(',').map(x=>x.trim()),img:el.dataset.img};selectedColor=current.colors[0];selectedSize=current.sizes[0];qty=1;$('modalImg').style.backgroundImage='url("'+current.img+'")';$('modalName').textContent=current.name;$('modalPrice').textContent=current.price?'RM '+current.price.toFixed(2):'Price: Contact us';$('qty').textContent=qty;renderOptions();$('modal').classList.add('show')}
-function renderOptions(){$('colors').innerHTML=current.colors.map(x=>'<button class="opt '+(x===selectedColor?'selected':'')+'" onclick="selectColor('+JSON.stringify(x)+')">'+x+'</button>').join('');$('sizes').innerHTML=current.sizes.map(x=>'<button class="opt '+(x===selectedSize?'selected':'')+'" onclick="selectSize('+JSON.stringify(x)+')">'+x+'</button>').join('')}
+function renderOptions(){
+  const render=(container,items,selected,setter)=>{
+    container.innerHTML='';
+    items.forEach(x=>{
+      const b=document.createElement('button');
+      b.type='button';
+      b.className='opt'+(x===selected?' selected':'');
+      b.textContent=x;
+      b.addEventListener('click',function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        setter(x);
+      });
+      container.appendChild(b);
+    });
+  };
+  render($('colors'),current.colors,selectedColor,x=>selectColor(x));
+  render($('sizes'),current.sizes,selectedSize,x=>selectSize(x));
+}
 function selectColor(x){selectedColor=x;renderOptions()}function selectSize(x){selectedSize=x;renderOptions()}function changeQty(n){qty=Math.max(1,qty+n);$('qty').textContent=qty}function closeProduct(){$('modal').classList.remove('show')}
 function addToCart(){let found=cart.find(x=>x.name===current.name&&x.color===selectedColor&&x.size===selectedSize);if(found)found.qty+=qty;else cart.push({name:current.name,color:selectedColor,size:selectedSize,qty:qty,price:current.price,img:current.img});saveCart();closeProduct();renderCart();$('cart').classList.add('show')}
 function cartQty(i,n){cart[i].qty=Math.max(1,cart[i].qty+n);saveCart();renderCart()}function removeItem(i){cart.splice(i,1);saveCart();renderCart()}function clearCart(){if(!cart.length)return;if(confirm('Clear all items from your cart?')){cart=[];saveCart();renderCart()}}
