@@ -127,16 +127,20 @@ async function loadFromSupabase(){
   if(!valid.length){container.innerHTML='<p id="mluvProductsStatus" style="grid-column:1/-1;text-align:center;color:#777;padding:32px 8px">No products are currently available.</p>';build();return}
   valid.forEach(x=>{let raw=x.description||x.details||'',idx=String(raw).indexOf('__MLUV_PO__'),opts=idx>=0?parsePurchaseOptions(String(raw).slice(idx+'__MLUV_PO__'.length)):[];container.appendChild(card({id:x.id,name:x.name,price:opts[0]?.price||x.price,colors:x.colors,sizes:x.sizes,description:cleanDescription(raw),purchaseOptions:opts,image_url:''}))});
   build();
-  // Load image fields only after the latest product names/prices are already visible.
+  // Load image data in small batches after product text is visible. This avoids a very long IN URL and lets photos appear progressively.
   const ids=valid.map(x=>x.id).filter(x=>x!==undefined&&x!==null);
-  if(ids.length){
-   const inList='('+ids.map(x=>String(x).replace(/[^0-9a-zA-Z_-]/g,'')).join(',')+')';
-   api(API+'?select=id,image_url&id=in.'+encodeURIComponent(inList),{cache:'no-store',headers:headersNoCache}).then(images=>{
-    if(!Array.isArray(images))return;
-    const byId=new Map(images.map(x=>[String(x.id),x.image_url||'']));
-    products().forEach(p=>{const src=byId.get(String(p.dataset.supabaseId));if(src){p.dataset.img=src;const im=p.querySelector('img');if(im)im.src=src;}});
-   }).catch(e=>console.warn('Product images are still loading:',e));
-  }
+  (async()=>{
+   for(let start=0;start<ids.length;start+=5){
+    const batch=ids.slice(start,start+5);
+    const filter='('+batch.map(x=>String(x).replace(/[^0-9a-zA-Z_-]/g,'')).join(',')+')';
+    try{
+     const images=await api(API+'?select=id,image_url&id=in.'+encodeURIComponent(filter),{cache:'no-store',headers:headersNoCache});
+     if(!Array.isArray(images))continue;
+     const byId=new Map(images.map(x=>[String(x.id),x.image_url||'']));
+     products().forEach(p=>{const src=byId.get(String(p.dataset.supabaseId));if(src){p.dataset.img=src;const im=p.querySelector('img');if(im){im.src=src;im.removeAttribute('data-placeholder');}}});
+    }catch(e){console.warn('Product image batch failed:',start,e);}
+   }
+  })();
  }catch(e){console.error('Supabase product load failed:',e);container.innerHTML='<p id="mluvProductsStatus" style="grid-column:1/-1;text-align:center;color:#9b2c2c;padding:32px 8px">Unable to load products. Please refresh or contact MLUV CLOTHING.</p>';build()}
 }
 window.mluvOpenEditor=function(){build();const e=$('mluvEditor');if(e){e.style.display='block';e.classList.add('show')}msg('');};window.mluvCloseEditor=function(){apply();const e=$('mluvEditor');if(e){e.style.display='none';e.classList.remove('show')}};window.mluvExport=function(){apply();const old=$('mluvEditor');if(old)old.classList.remove('show');const btn=$('mluvEditorBtn');if(btn)btn.style.display='none';const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML,blob=new Blob([html],{type:'text/html;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='index.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);alert('备份版 index.html 已下载。')};
