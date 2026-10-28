@@ -115,7 +115,30 @@ window.mluvAddProduct=function(){const container=document.querySelector('#new .p
 window.mluvDeleteProduct=async function(i){const p=products()[i];if(!p)return;if(!confirm('确定删除这款商品吗？'))return;const id=p.dataset.supabaseId;if(id){try{msg('正在删除...');await api(API+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:headers({'Prefer':'return=minimal'})})}catch(e){msg('删除失败：'+e.message);return}}p.remove();build();msg('商品已删除。',true)};
 async function saveOne(o){let image=o.image_url||'';if(image.startsWith('data:image/'))image=await compressDataUrl(image);let payload={name:o.name,price:o.purchaseOptions?.[0]?.price|| (o.price?Number(o.price):null),colors:o.colors,sizes:o.sizes,description:encodeDescription(o.description,o.purchaseOptions),image_url:image};if(o.id){return await api(API+'?id=eq.'+encodeURIComponent(o.id),{method:'PATCH',headers:headers({'Prefer':'return=representation'}),body:JSON.stringify(payload)})}let data=await api(API,{method:'POST',headers:headers({'Prefer':'return=representation'}),body:JSON.stringify(payload)});return data}
 window.mluvSync=async function(){apply();const rows=[...document.querySelectorAll('.mluve-row')];if(!rows.length){msg('没有商品。');return}msg('正在保存到 Supabase，请稍等...');try{for(let n=0;n<rows.length;n++){const o=readRow(rows[n]);if(!o.name)continue;msg('正在保存第 '+(n+1)+' / '+rows.length+' 款：'+o.name+' ...');try{const data=await saveOne(o);const rec=Array.isArray(data)?data[0]:data;if(rec?.id){o.p.dataset.supabaseId=rec.id}}catch(e){throw new Error('第 '+(n+1)+' 款「'+o.name+'」保存失败：'+e.message)}}build();msg('保存成功！已同步 '+rows.length+' 款商品到 Supabase。',true);await loadFromSupabase()}catch(e){console.error(e);msg('保存失败：'+e.message+'。请把这行红色错误截图给我，我就能直接判断是 RLS 还是字段问题。')}};
-async function loadFromSupabase(){const container=document.querySelector('#new .products');if(!container)return;const status=()=>document.getElementById('mluvProductsStatus');try{const data=await api(API+'?select=*&order=id.desc&limit=1000',{cache:'no-store',headers:headers({'Cache-Control':'no-cache','Pragma':'no-cache'})});const valid=(Array.isArray(data)?data:[]).filter(x=>x&&String(x.name||'').trim());container.innerHTML='';if(!valid.length){container.innerHTML='<p id="mluvProductsStatus" style="grid-column:1/-1;text-align:center;color:#777;padding:32px 8px">No products are currently available.</p>';build();return}valid.forEach(x=>{let raw=x.description||x.details||'',idx=String(raw).indexOf('__MLUV_PO__'),opts=idx>=0?parsePurchaseOptions(String(raw).slice(idx+'__MLUV_PO__'.length)):[];container.appendChild(card({id:x.id,name:x.name,price:opts[0]?.price||x.price,colors:x.colors,sizes:x.sizes,description:cleanDescription(raw),purchaseOptions:opts,image_url:x.image_url||x.image||''}))});build()}catch(e){console.error('Supabase product load failed:',e);container.innerHTML='<p id="mluvProductsStatus" style="grid-column:1/-1;text-align:center;color:#9b2c2c;padding:32px 8px">Unable to load products. Please refresh or contact MLUV CLOTHING.</p>';build()}}
+async function loadFromSupabase(){
+ const container=document.querySelector('#new .products');if(!container)return;
+ const headersNoCache=headers({'Cache-Control':'no-cache','Pragma':'no-cache'});
+ try{
+  // First fetch only lightweight product fields. Do not download base64 photos before showing the latest products.
+  const fields='id,name,price,colors,sizes,description';
+  const data=await api(API+'?select='+fields+'&order=id.desc&limit=1000',{cache:'no-store',headers:headersNoCache});
+  const valid=(Array.isArray(data)?data:[]).filter(x=>x&&String(x.name||'').trim());
+  container.innerHTML='';
+  if(!valid.length){container.innerHTML='<p id="mluvProductsStatus" style="grid-column:1/-1;text-align:center;color:#777;padding:32px 8px">No products are currently available.</p>';build();return}
+  valid.forEach(x=>{let raw=x.description||x.details||'',idx=String(raw).indexOf('__MLUV_PO__'),opts=idx>=0?parsePurchaseOptions(String(raw).slice(idx+'__MLUV_PO__'.length)):[];container.appendChild(card({id:x.id,name:x.name,price:opts[0]?.price||x.price,colors:x.colors,sizes:x.sizes,description:cleanDescription(raw),purchaseOptions:opts,image_url:''}))});
+  build();
+  // Load image fields only after the latest product names/prices are already visible.
+  const ids=valid.map(x=>x.id).filter(x=>x!==undefined&&x!==null);
+  if(ids.length){
+   const inList='('+ids.map(x=>String(x).replace(/[^0-9a-zA-Z_-]/g,'')).join(',')+')';
+   api(API+'?select=id,image_url,image&id=in.'+encodeURIComponent(inList),{cache:'no-store',headers:headersNoCache}).then(images=>{
+    if(!Array.isArray(images))return;
+    const byId=new Map(images.map(x=>[String(x.id),x.image_url||x.image||'']));
+    products().forEach(p=>{const src=byId.get(String(p.dataset.supabaseId));if(src){p.dataset.img=src;const im=p.querySelector('img');if(im)im.src=src;}});
+   }).catch(e=>console.warn('Product images are still loading:',e));
+  }
+ }catch(e){console.error('Supabase product load failed:',e);container.innerHTML='<p id="mluvProductsStatus" style="grid-column:1/-1;text-align:center;color:#9b2c2c;padding:32px 8px">Unable to load products. Please refresh or contact MLUV CLOTHING.</p>';build()}
+}
 window.mluvOpenEditor=function(){build();const e=$('mluvEditor');if(e){e.style.display='block';e.classList.add('show')}msg('');};window.mluvCloseEditor=function(){apply();const e=$('mluvEditor');if(e){e.style.display='none';e.classList.remove('show')}};window.mluvExport=function(){apply();const old=$('mluvEditor');if(old)old.classList.remove('show');const btn=$('mluvEditorBtn');if(btn)btn.style.display='none';const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML,blob=new Blob([html],{type:'text/html;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='index.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);alert('备份版 index.html 已下载。')};
 if(location.hash==='#admin')$('mluvEditorBtn').style.display='block';window.addEventListener('hashchange',()=>{$('mluvEditorBtn').style.display=location.hash==='#admin'?'block':'none'});// Start fetching the latest products as soon as the HTML and scripts are parsed; do not wait for every embedded image to finish loading.
 loadFromSupabase();
