@@ -131,9 +131,9 @@ async function loadFromSupabase(){
   const ids=valid.map(x=>x.id).filter(x=>x!==undefined&&x!==null);
   if(ids.length){
    const inList='('+ids.map(x=>String(x).replace(/[^0-9a-zA-Z_-]/g,'')).join(',')+')';
-   api(API+'?select=id,image_url,image&id=in.'+encodeURIComponent(inList),{cache:'no-store',headers:headersNoCache}).then(images=>{
+   api(API+'?select=id,image_url&id=in.'+encodeURIComponent(inList),{cache:'no-store',headers:headersNoCache}).then(images=>{
     if(!Array.isArray(images))return;
-    const byId=new Map(images.map(x=>[String(x.id),x.image_url||x.image||'']));
+    const byId=new Map(images.map(x=>[String(x.id),x.image_url||'']));
     products().forEach(p=>{const src=byId.get(String(p.dataset.supabaseId));if(src){p.dataset.img=src;const im=p.querySelector('img');if(im)im.src=src;}});
    }).catch(e=>console.warn('Product images are still loading:',e));
   }
